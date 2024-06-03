@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Tab3_Scatterplot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        font-family: "Do Hyeon", sans-serif;
+        margin: 0;
+        padding: 0;
+      }
+      h1 {
+        margin: 20px 0;
+      }
+      .tabs {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+        width: 100%;
+      }
+      .tab {
+        cursor: pointer;
+        padding: 10px 20px;
+        margin: 5px;
+        border-radius: 5px;
+        transition: background 0.3s;
+        background-color: #007bff;
+        color: white;
+      }
+      .tab:hover {
+        background: red;
+      }
+      .tab.active {
+        background: red;
+        font-weight: bold;
+      }
+      .container {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        width: 100%;
+        flex-direction: column;
+      }
+      .chart-container {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+        margin-top: 20px;
+      }
+      .chart {
+        display: none;
+      }
+      .chart.active {
+        display: block;
+      }
+      .tooltip {
+        position: absolute;
+        text-align: center;
+        width: auto;
+        height: auto;
+        padding: 5px;
+        font: 12px "Do Hyeon", sans-serif;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        border: 0px;
+        border-radius: 8px;
+        pointer-events: none;
+      }
+      .details {
+        width: 90%;
+        max-width: 600px;
+        padding: 20px;
+        background: #f9f9f9;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        font-size: 18px;
+        margin: 20px auto;
+      }
+      .details h3 {
+        text-align: center;
+        font-size: 24px;
+      }
+      .winner {
+        text-align: center;
+        font-weight: bold;
+        margin-bottom: 10px;
+      }
+      .team-info {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+      }
+      .team {
+        width: 48%;
+        padding: 10px;
+        border-radius: 5px;
+        box-sizing: border-box;
+        margin-bottom: 10px;
+      }
+      .red-team {
+        background: rgba(255, 0, 0, 0.1);
+      }
+      .blue-team {
+        background: rgba(0, 0, 255, 0.1);
+      }
+      .axis-label {
+        font-weight: bold;
+        font-size: 24px;
+      }
+      .redcolor {
+        color: red;
+        font-weight: bold;
+      }
+      .bluecolor {
+        color: blue;
+        font-weight: bold;
+      }
+      @media (min-width: 768px) {
+        .container {
+          flex-direction: row;
+        }
+        .chart-container {
+          width: 70%;
+        }
+        .details {
+          margin: 50px 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>극단적 경기 분석</h1>
+    <div class="tabs">
+      <div class="tab active" data-chart="WardsPlaced">설치한 와드 수</div>
+      <div class="tab" data-chart="WardsDestroyed">파괴된 와드 수</div>
+      <div class="tab" data-chart="Kills">킬</div>
+      <div class="tab" data-chart="Deaths">데스</div>
+      <div class="tab" data-chart="Assists">어시스트</div>
+      <div class="tab" data-chart="TotalGold">총 골드</div>
+      <div class="tab" data-chart="AvgLevel">평균 레벨</div>
+      <div class="tab" data-chart="TotalExperience">총 경험치</div>
+      <div class="tab" data-chart="TotalMinionsKilled">총 CS</div>
+      <div class="tab" data-chart="TotalJungleMinionsKilled">
+        총 정글 몬스터 처치 수
+      </div>
+      <div class="tab" data-chart="CSPerMin">분당 CS</div>
+      <div class="tab" data-chart="GoldPerMin">분당 골드</div>
+    </div>
+    <div class="container">
+      <div class="chart-container" id="chartContainer">
+        <div id="WardsPlaced" class="chart active"></div>
+        <div id="WardsDestroyed" class="chart"></div>
+        <div id="Kills" class="chart"></div>
+        <div id="Deaths" class="chart"></div>
+        <div id="Assists" class="chart"></div>
+        <div id="TotalGold" class="chart"></div>
+        <div id="AvgLevel" class="chart"></div>
+        <div id="TotalExperience" class="chart"></div>
+        <div id="TotalMinionsKilled" class="chart"></div>
+        <div id="TotalJungleMinionsKilled" class="chart"></div>
+        <div id="CSPerMin" class="chart"></div>
+        <div id="GoldPerMin" class="chart"></div>
+      </div>
+      <div class="details" id="details">
+        <h3>상세 정보</h3>
+        <p>상세 정보를 보려면 셀을 클릭하세요</p>
+      </div>
+    </div>
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+      const attributes = [
+        "WardsPlaced",
+        "WardsDestroyed",
+        "Kills",
+        "Deaths",
+        "Assists",
+        "TotalGold",
+        "AvgLevel",
+        "TotalExperience",
+        "TotalMinionsKilled",
+        "TotalJungleMinionsKilled",
+        "CSPerMin",
+        "GoldPerMin",
+      ];
+
+      const margin = { top: 20, right: 20, bottom: 50, left: 100 },
+        width = 0.6 * window.innerWidth - margin.left - margin.right,
+        height = 0.6 * window.innerHeight - margin.top - margin.bottom;
+
+      const tooltip = d3.select("#tooltip");
+      const details = d3.select("#details");
+
+      d3.json("data.json").then((data) => {
+        attributes.forEach((attr) => {
+          const svg = d3
+            .select(`#${attr}`)
+            .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+          const x = d3
+            .scaleLinear()
+            .domain([0, d3.max(data, (d) => +d[`blue${attr}`])])
+            .range([0, width]);
+
+          const y = d3
+            .scaleLinear()
+            .domain([0, d3.max(data, (d) => +d[`red${attr}`])])
+            .range([height, 0]);
+
+          svg
+            .append("g")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(x));
+
+          svg.append("g").call(d3.axisLeft(y));
+
+          svg
+            .append("line")
+            .attr("x1", 0)
+            .attr("y1", height)
+            .attr("x2", width)
+            .attr("y2", 0)
+            .attr("stroke", "black")
+            .attr("stroke-width", 1)
+            .attr("stroke-dasharray", "5,5");
+
+          svg
+            .append("text")
+            .attr("class", "axis-label")
+            .attr("x", width / 2)
+            .attr("y", height + margin.bottom - 10)
+            .attr("fill", "blue")
+            .style("text-anchor", "middle")
+            .text("블루 팀");
+
+          svg
+            .append("text")
+            .attr("class", "axis-label")
+            .attr("transform", "rotate(-90)")
+            .attr("x", -height / 2)
+            .attr("y", -margin.left + 50)
+            .attr("dy", ".75em")
+            .attr("fill", "red")
+            .style("text-anchor", "middle")
+            .text("레드 팀");
+
+          svg
+            .selectAll("circle")
+            .data(data)
+            .enter()
+            .append("circle")
+            .attr("cx", (d) => x(+d[`blue${attr}`]))
+            .attr("cy", (d) => y(+d[`red${attr}`]))
+            .attr("r", 5)
+            .attr("fill", "green")
+            .attr("opacity", 0.4)
+            .on("mouseover", (event, d) => {
+              tooltip.transition().duration(200).style("opacity", 0.9);
+              tooltip
+                .html(
+                  `Game ID: ${d.gameId}<br>Blue ${attr}: ${
+                    d[`blue${attr}`]
+                  }<br>Red ${attr}: ${d[`red${attr}`]}`
+                )
+                .style("left", event.pageX + 5 + "px")
+                .style("top", event.pageY - 28 + "px");
+            })
+            .on("mouseout", () => {
+              tooltip.transition().duration(500).style("opacity", 0);
+            })
+            .on("click", (event, d) => {
+              const winner = d.blueWins
+                ? '<span style="color: blue; font-size: 32px;">블루 팀 승리</span>'
+                : '<span style="color: red; font-size: 32px;">레드 팀 승리</span>';
+              details.html(`
+                <h3>상세 정보</h3>
+                <div class="winner">${winner}</div>
+                <div class="team-info">
+                    <div class="team red-team">
+                        <p><strong class="redcolor">레드 팀</strong></p>
+                        <p><strong>설치한 와드 수:</strong> ${d.redWardsPlaced}</p>
+                        <p><strong>파괴된 와드 수:</strong> ${d.redWardsDestroyed}</p>
+                        <p><strong>킬:</strong> ${d.redKills}</p>
+                        <p><strong>데스:</strong> ${d.redDeaths}</p>
+                        <p><strong>어시스트:</strong> ${d.redAssists}</p>
+                        <p><strong>총 골드:</strong> ${d.redTotalGold}</p>
+                        <p><strong>평균 레벨:</strong> ${d.redAvgLevel}</p>
+                        <p><strong>총 경험치:</strong> ${d.redTotalExperience}</p>
+                        <p><strong>총 CS:</strong> ${d.redTotalMinionsKilled}</p>
+                        <p><strong>총 정글 몬스터 처치 수:</strong> ${d.redTotalJungleMinionsKilled}</p>
+                        <p><strong>분당 CS:</strong> ${d.redCSPerMin}</p>
+                        <p><strong>분당 골드:</strong> ${d.redGoldPerMin}</p>
+                    </div>
+                    <div class="team blue-team">
+                      <p><strong class="bluecolor">블루 팀</strong></p>
+                        <p><strong>설치한 와드 수:</strong> ${d.blueWardsPlaced}</p>
+                        <p><strong>파괴된 와드 수:</strong> ${d.blueWardsDestroyed}</p>
+                        <p><strong>킬:</strong> ${d.blueKills}</p>
+                        <p><strong>데스:</strong> ${d.blueDeaths}</p>
+                        <p><strong>어시스트:</strong> ${d.blueAssists}</p>
+                        <p><strong>총 골드:</strong> ${d.blueTotalGold}</p>
+                        <p><strong>평균 레벨:</strong> ${d.blueAvgLevel}</p>
+                        <p><strong>총 경험치:</strong> ${d.blueTotalExperience}</p>
+                        <p><strong>총 CS:</strong> ${d.blueTotalMinionsKilled}</p>
+                        <p><strong>총 정글 몬스터 처치 수:</strong> ${d.blueTotalJungleMinionsKilled}</p>
+                        <p><strong>분당 CS:</strong> ${d.blueCSPerMin}</p>
+                        <p><strong>분당 골드:</strong> ${d.blueGoldPerMin}</p>
+                    </div>
+                </div>
+              `);
+            });
+        });
+
+        d3.selectAll(".tab").on("click", function () {
+          const chartId = d3.select(this).attr("data-chart");
+          d3.selectAll(".tab").classed("active", false);
+          d3.select(this).classed("active", true);
+          d3.selectAll(".chart").classed("active", false);
+          d3.select(`#${chartId}`).classed("active", true);
+        });
+      });
+
+      window.addEventListener("resize", () => {
+        const newWidth = 0.8 * window.innerWidth - margin.left - margin.right;
+        const newHeight = 0.8 * window.innerHeight - margin.top - margin.bottom;
+
+        attributes.forEach((attr) => {
+          const svg = d3.select(`#${attr}`).select("svg");
+          svg.attr("width", newWidth + margin.left + margin.right);
+          svg.attr("height", newHeight + margin.top + margin.bottom);
+
+          const x = d3
+            .scaleLinear()
+            .domain([0, d3.max(data, (d) => +d[`blue${attr}`])])
+            .range([0, newWidth]);
+
+          const y = d3
+            .scaleLinear()
+            .domain([0, d3.max(data, (d) => +d[`red${attr}`])])
+            .range([newHeight, 0]);
+
+          svg
+            .select(".x.axis")
+            .attr("transform", `translate(0,${newHeight})`)
+            .call(d3.axisBottom(x));
+
+          svg.select(".y.axis").call(d3.axisLeft(y));
+
+          svg
+            .selectAll("circle")
+            .attr("cx", (d) => x(+d[`blue${attr}`]))
+            .attr("cy", (d) => y(+d[`red${attr}`]));
+        });
+      });
+    </script>
+  </body>
+</html>

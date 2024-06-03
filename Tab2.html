@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Tab2_Barchart</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+      body {
+        font-family: "Do Hyeon", sans-serif;
+        background-color: white;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+      }
+      .bar {
+        stroke: #fff;
+        cursor: pointer;
+      }
+      .axis-label {
+        font-size: 16px;
+        text-anchor: end;
+        fill: #333;
+      }
+      .title {
+        font-size: 40px;
+        text-anchor: middle;
+        fill: #333;
+        font-weight: bold;
+      }
+      .tooltip {
+        position: absolute;
+        text-align: center;
+        width: auto;
+        height: auto;
+        padding: 5px;
+        font: 12px "Do Hyeon", sans-serif;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        border: 0px;
+        border-radius: 8px;
+        pointer-events: none;
+      }
+      .controls {
+        margin-top: 20px;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+      }
+      .controls button {
+        font-size: 24px;
+        padding: 10px 20px;
+        margin: 0 10px;
+        border: none;
+        border-radius: 5px;
+        background-color: #007bff;
+        color: white;
+        cursor: pointer;
+        transition: background-color 0.3s, transform 0.3s;
+        font-family: "Do Hyeon", sans-serif;
+      }
+      .controls button:hover {
+        background-color: #0056b3;
+        transform: translateY(-2px);
+      }
+      .controls button:active {
+        transform: translateY(0);
+      }
+      .legend {
+        font-size: 18px;
+        font-weight: bold;
+        fill: #333;
+      }
+      .legend rect {
+        stroke-width: 2;
+        cursor: pointer;
+      }
+      .filter-controls {
+        margin-left: 20px;
+        display: flex;
+        align-items: flex-start;
+      }
+      .filter-controls .checkboxes {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 5px;
+      }
+      .filter-controls .buttons {
+        display: flex;
+        flex-direction: column;
+        margin-left: 20px;
+      }
+      .filter-controls label {
+        margin: 2px;
+        font-size: 16px;
+      }
+      .filter-controls button {
+        font-size: 20px;
+        padding: 8px 16px;
+        margin: 5px 0;
+        border: none;
+        border-radius: 5px;
+        background-color: #28a745;
+        color: white;
+        cursor: pointer;
+        transition: background-color 0.3s, transform 0.3s;
+        font-family: "Do Hyeon", sans-serif;
+      }
+      .filter-controls button:hover {
+        background-color: #218838;
+        transform: translateY(-2px);
+      }
+      .filter-controls button:active {
+        transform: translateY(0);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="chart"></div>
+    <div class="controls">
+      <button onclick="sortData('diffDesc')">차이가 큰 순 (내림차순)</button>
+      <button onclick="sortData('diffAsc')">차이가 작은 순 (오름차순)</button>
+      <button onclick="sortData('alphabetical')">알파벳 순</button>
+      <div class="filter-controls">
+        <div class="checkboxes" id="attribute-checkboxes"></div>
+        <div class="buttons">
+          <button onclick="selectAll()">전체 선택</button>
+          <button onclick="deselectAll()">전체 해제</button>
+          <button onclick="filterData()">확인</button>
+        </div>
+      </div>
+    </div>
+    <script>
+      const margin = { top: 50, right: 200, bottom: 150, left: 100 };
+      const width = window.innerWidth - margin.left - margin.right - 100;
+      const height = 800 - margin.top - margin.bottom;
+
+      const svg = d3
+        .select("#chart")
+        .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+      const tooltip = d3
+        .select("body")
+        .append("div")
+        .attr("class", "tooltip")
+        .style("opacity", 0);
+
+      d3.csv("data.csv").then((data) => {
+        const attributes = [
+          "WardsPlaced",
+          "WardsDestroyed",
+          "FirstBlood",
+          "Kills",
+          "Deaths",
+          "Assists",
+          "EliteMonsters",
+          "Dragons",
+          "Heralds",
+          "TowersDestroyed",
+          "TotalGold",
+          "AvgLevel",
+          "TotalExperience",
+          "TotalMinionsKilled",
+          "TotalJungleMinionsKilled",
+          "GoldDiff",
+          "ExperienceDiff",
+          "CSPerMin",
+          "GoldPerMin",
+        ];
+
+        // 한글 번역 맵
+        const translationMap = {
+          GoldPerMin: "분당 골드",
+          CSPerMin: "분당 CS",
+          ExperienceDiff: "경험치 차이",
+          GoldDiff: "골드 차이",
+          TotalJungleMinionsKilled: "총 정글 몬스터 처치 수",
+          TotalMinionsKilled: "총 CS",
+          TotalExperience: "총 경험치",
+          AvgLevel: "평균 레벨",
+          TotalGold: "총 골드",
+          TowersDestroyed: "파괴된 포탑 수",
+          Heralds: "전령 처치 수",
+          Dragons: "용 처치 수",
+          EliteMonsters: "엘리트 몬스터 처치 수",
+          Assists: "어시스트",
+          Deaths: "데스",
+          Kills: "킬",
+          FirstBlood: "퍼스트 블러드",
+          WardsDestroyed: "파괴된 와드 수",
+          WardsPlaced: "설치한 와드 수",
+        };
+
+        const checkboxContainer = d3.select("#attribute-checkboxes");
+        attributes.forEach((attr) => {
+          const label = checkboxContainer
+            .append("label")
+            .text(translationMap[attr]);
+          label
+            .append("input")
+            .attr("type", "checkbox")
+            .attr("value", attr)
+            .property("checked", true);
+          checkboxContainer.append(() => document.createElement("br"));
+        });
+
+        let winData = [];
+        let loseData = [];
+
+        data.forEach((d) => {
+          const win = d.blueWins == 1 ? "blue" : "red";
+          const lose = d.blueWins == 0 ? "blue" : "red";
+
+          const winObj = { result: "win" };
+          const loseObj = { result: "lose" };
+
+          attributes.forEach((attr) => {
+            winObj[attr] = +d[`${win}${attr}`];
+            loseObj[attr] = +d[`${lose}${attr}`];
+          });
+
+          winData.push(winObj);
+          loseData.push(loseObj);
+        });
+
+        // 정규화 함수 (LLM Generated)
+        function normalize(data, attr, min, max) {
+          return data.map((d) => ({
+            ...d,
+            [attr]: ((d[attr] - min) / (max - min)) * 100,
+          }));
+        }
+
+        attributes.forEach((attr) => {
+          const max = d3.max([...winData, ...loseData], (d) => d[attr]);
+          const min = d3.min([...winData, ...loseData], (d) => d[attr]);
+
+          winData = normalize(winData, attr, min, max);
+          loseData = normalize(loseData, attr, min, max);
+        });
+
+        let teamData = getTeamData(attributes, winData, loseData);
+
+        createChart(teamData);
+
+        function createChart(data) {
+          svg.selectAll("*").remove();
+
+          const x0 = d3
+            .scaleBand()
+            .domain(data.map((d) => d.attribute))
+            .range([0, width])
+            .paddingInner(0.2);
+
+          const x1 = d3
+            .scaleBand()
+            .domain(["win", "lose"])
+            .range([0, x0.bandwidth()])
+            .padding(0.1);
+
+          const y = d3.scaleLinear().domain([0, 100]).nice().range([height, 0]);
+
+          const color = d3
+            .scaleOrdinal()
+            .domain(["win", "lose"])
+            .range(["#1f77b4", "#ff7f0e"]);
+
+          const xAxisGroup = svg
+            .append("g")
+            .attr("transform", `translate(0,${height})`)
+            .attr("class", "x-axis");
+
+          xAxisGroup
+            .call(d3.axisBottom(x0))
+            .selectAll("text")
+            .attr("class", "axis-label")
+            .attr("transform", "rotate(-45)")
+            .style("text-anchor", "end");
+
+          svg.append("g").call(d3.axisLeft(y));
+
+          const barGroups = svg
+            .selectAll("g.bar-group")
+            .data(data)
+            .enter()
+            .append("g")
+            .attr("class", "bar-group")
+            .attr("transform", (d) => `translate(${x0(d.attribute)},0)`);
+
+          barGroups
+            .selectAll("rect")
+            .data((d) => [
+              { key: "win", value: d.win, actual: d.winActual },
+              { key: "lose", value: d.lose, actual: d.loseActual },
+            ])
+            .enter()
+            .append("rect")
+            .attr("x", (d) => x1(d.key))
+            .attr("y", (d) => y(0))
+            .attr("width", x1.bandwidth())
+            .attr("height", (d) => height - y(0))
+            .attr("fill", (d) => color(d.key))
+            .attr("stroke", "#000")
+            .attr("stroke-width", 2)
+            .attr("rx", 5)
+            .attr("ry", 5)
+            .on("mouseover", function (event, d) {
+              tooltip.transition().duration(200).style("opacity", 0.9);
+              tooltip
+                .html(
+                  `Result: ${
+                    d.key === "win" ? "Win" : "Lose"
+                  }<br>Value: ${d.actual.toFixed(2)}`
+                )
+                .style("left", event.pageX + 5 + "px")
+                .style("top", event.pageY - 28 + "px");
+            })
+            .on("mouseout", function () {
+              tooltip.transition().duration(500).style("opacity", 0);
+            });
+
+          svg
+            .selectAll("rect")
+            .transition()
+            .duration(200)
+            .attr("y", (d) => y(d.value))
+            .attr("height", (d) => height - y(d.value))
+            .delay((d, i) => i * 20);
+
+          const legend = svg
+            .append("g")
+            .attr("class", "legend")
+            .attr("transform", `translate(${width + 20}, 20)`);
+
+          legend
+            .selectAll("rect")
+            .data(color.domain())
+            .enter()
+            .append("rect")
+            .attr("x", 0)
+            .attr("y", (d, i) => i * 25)
+            .attr("width", 20)
+            .attr("height", 20)
+            .attr("fill", color)
+            .attr("stroke", color)
+            .attr("stroke-width", 2)
+            .on("click", function (event, d) {
+              const currentOpacity = d3.selectAll(`.bar.${d}`).style("opacity");
+              d3.selectAll(`.bar.${d}`).style(
+                "opacity",
+                currentOpacity == 1 ? 0.2 : 1
+              );
+            });
+
+          legend
+            .selectAll("text")
+            .data(color.domain())
+            .enter()
+            .append("text")
+            .attr("x", 30)
+            .attr("y", (d, i) => i * 25 + 15)
+            .text((d) => (d === "win" ? "승리 팀" : "패배 팀"));
+
+          svg
+            .append("text")
+            .attr("class", "title")
+            .attr("x", width / 2)
+            .attr("y", -20)
+            .text("승리 팀과 패배 팀의 주요 지표 차이");
+        }
+
+        function getTeamData(attrs, winData, loseData) {
+          return attrs.map((attr) => {
+            return {
+              attribute: attr,
+              win: d3.mean(winData, (d) => d[attr]),
+              lose: d3.mean(loseData, (d) => d[attr]),
+              winActual: d3.mean(winData, (d) => d[attr]),
+              loseActual: d3.mean(loseData, (d) => d[attr]),
+            };
+          });
+        }
+
+        // 정렬 함수 (LLM Generated)
+        function sortData(order) {
+          if (order === "diffDesc") {
+            teamData.sort(
+              (a, b) => Math.abs(b.win - b.lose) - Math.abs(a.win - a.lose)
+            );
+          } else if (order === "diffAsc") {
+            teamData.sort(
+              (a, b) => Math.abs(a.win - a.lose) - Math.abs(b.win - b.lose)
+            );
+          } else if (order === "alphabetical") {
+            teamData.sort((a, b) => a.attribute.localeCompare(b.attribute));
+          }
+          createChart(teamData);
+        }
+
+        function filterData() {
+          const selectedAttributes = Array.from(
+            document.querySelectorAll("#attribute-checkboxes input:checked")
+          ).map((checkbox) => checkbox.value);
+
+          teamData = getTeamData(selectedAttributes, winData, loseData);
+
+          createChart(teamData);
+        }
+
+        function selectAll() {
+          d3.selectAll("#attribute-checkboxes input").property("checked", true);
+        }
+
+        function deselectAll() {
+          d3.selectAll("#attribute-checkboxes input").property(
+            "checked",
+            false
+          );
+        }
+
+        window.sortData = sortData;
+        window.filterData = filterData;
+        window.selectAll = selectAll;
+        window.deselectAll = deselectAll;
+      });
+    </script>
+  </body>
+</html>
